@@ -987,7 +987,7 @@ contains
 		!local
 		integer :: i,maxits
 		real(kind=8),dimension(A%m) :: Mdiag
-		real(kind=8),dimension(A%n)::x,xout,Ddiag
+		real(kind=8),dimension(A%n)::x,xn,xout,Ddiag
 		real(kind=8) :: ub,lb
 		logical :: verb,upb,lwrb
 		
@@ -1056,11 +1056,26 @@ contains
 		
 		
 		do i = 1,maxits
-			x = x + Ddiag*A%transvecmul( (b - A%matvecmul(x))/Mdiag )
+			xn = x + Ddiag*A%transvecmul( (b - A%matvecmul(x))/Mdiag )
+			
+			!apply bounds
+			if (upb .and. .not. lwrb) then
+				xn = min(xn,ub)
+			elseif (.not. upb .and. lwrb) then
+				xn = max(xn,lb)
+			elseif (upb .and. lwrb) then
+				xn = min(xn,ub)
+				xn = max(xn,lb)
+			endif
+			
+			x = xn
+			
 			
 			if (verb) write(*,*) "Iteration ",i," of ",maxits
 			
 		enddo
+		
+		xout = x
 		
 		
 		if (verb) then
