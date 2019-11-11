@@ -1,0 +1,14 @@
+#compiled code
+*.o
+*.exe
+*.mod
+
+#data files
+*.dat
+*.txt
+*.ord
+
+#matlab stuff can be ignored too
+*.m
+*.mat
+
