@@ -974,6 +974,109 @@ contains
 		
 	end subroutine gradient_descent
 	
+	subroutine sirt(xout,sirt_method,A,b,Kin,x0,options)
+		implicit none
+		!inputs
+		character(*) :: sirt_method
+		class(sparse_matrix),intent(in) :: A
+		real(kind=8),intent(in) :: b(A%m)
+		integer,intent(in) :: Kin(:)
+		real(kind=8),intent(in),optional :: x0(A%n)
+		class(opts),intent(in),optional :: options
+		
+		!local
+		integer :: i,maxits
+		real(kind=8),dimension(A%m) :: Mdiag
+		real(kind=8),dimension(A%n)::x,xout,Ddiag
+		real(kind=8) :: ub,lb
+		logical :: verb,upb,lwrb
+		
+		maxits = maxval(Kin)
+		if (present(options)) then
+			upb = options%upb
+			lwrb = options%lwrb
+			ub = options%ubound
+			lb = options%lbound
+			!dmp = options%damp
+			!omg = options%relaxpar
+			verb = options%verbose
+			
+			if (verb) then
+				write(*,*) "================================"
+				write(*,*) " "
+				write(*,*) "SIRT"
+				write(*,*) " "
+				write(*,*) "================================"
+				write(*,*) "Options detected:"
+				write(*,*) "Verbose mode activated. I'll do a lot of talking."
+				if (upb) then
+					write(*,*) "Using upper bound: ",ub
+				else
+					write(*,*) "No upper bound present."
+				endif
+				if (lwrb) then
+					write(*,*) "Using lower bound: ",lb
+				else
+					write(*,*) "No lower bound present."
+				endif
+				write(*,*) "================================"
+			endif
+		else
+			!standard options means no bounds applied, no damping and a relaxation parameter of 1.
+			upb = .false.
+			lwrb = .false.
+			ub = 0d0
+			lb = 1d0
+			verb = .false.
+		endif
+		
+		if (present(x0)) then
+			if (size(x0) /= A%n) stop "Size of x0 should be equal to n (#columns)."
+			x = x0
+			if (verb) write(*,*) "Using custom initial condition."
+		else
+			x = 0d0
+			if (verb) write(*,*) "Using all-zero initial condition."
+		endif
+		
+		write(*,*) "================================"
+		
+		select case(sirt_method)
+			case ('cimmino')
+				Mdiag = A%m*A%row_norms(2)**2
+				Ddiag = 1d0
+				if (verb) write(*,*) "Using Cimmino's method."
+			case ('sirt')
+				Mdiag = A%row_norms(1)
+				Ddiag = A%column_norms(1)
+				if (verb) write(*,*) "Using SIRT method."
+			case default
+				stop "Not a recognised SIRT method."
+		end select
+		
+		
+		do i = 1,maxits
+			x = x + Ddiag*A%transvecmul( (b - A%matvecmul(x))/Mdiag )
+			
+			if (verb) write(*,*) "Iteration ",i," of ",maxits
+			
+		enddo
+		
+		
+		if (verb) then
+			write(*,*) "================================"
+			write(*,*) "Verbose signing off."
+			write(*,*) "================================"
+			write(*,*) " "
+			write(*,*) "SIRT"
+			write(*,*) " "
+			write(*,*) "================================"
+		endif
+		
+		
+		
+	end subroutine sirt
+	
 	function normest(A,tolerance,max_its) result(sigma)
 		!Use the power method to find the largest singular value of A.
 		!Brute force, but it works.

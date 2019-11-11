@@ -27,7 +27,8 @@ module sparse_matrices
 	public sparse_matrix,CSR_matrix,CSC_matrix
 	private print_line,csr_matrowvec,sparsematmul,sparsetransmul,MMRS,MMCS,&
 			transposition,conv_to_CSC,conv_to_CSR,reorder,SM_set_element,SM_get_element,&
-			csr_get_element,SM_delete_element,compute_row_norms,add_mult_row,scalar_mult
+			csr_get_element,SM_delete_element,compute_row_norms,add_mult_row,scalar_mult,&
+			compute_column_norms
 	
 	type sparse_matrix
 		!This type is only a helper, it contains all the basic information that defines CSR and CSC matrices:
@@ -134,6 +135,13 @@ module sparse_matrices
 		!nrA is in R^m; the vector of row norms
 		!p is an integer, cannot be infinite
 		procedure :: row_norms => compute_row_norms
+		
+		!Compute the p-norms of each column
+		!	ncA = A%column_norms(p)
+		!A is type(csr_matrix) or type(csc_matrix)
+		!ncA is in R^n; the vector of column norms
+		!p is an integer, cannot be infinite
+		procedure :: column_norms => compute_column_norms
 		
 		!Multiply the whole matrix by a scalar phi
 		!	call A%multiply_by_scalar(phi)
@@ -742,6 +750,17 @@ contains
 		if (trans) call A%transpose()
 		
 	end function compute_row_norms
+	
+	function compute_column_norms(A,p) result(ncA)
+		implicit none
+		class(sparse_matrix) :: A
+		integer,intent(in) :: p
+		real(kind=8) :: ncA(A%n)
+		
+		call A%transpose()
+		ncA = A%row_norms(p)
+		
+	end function compute_column_norms
 	
 	subroutine add_mult_row(A,k,c,w,lwrb,upb)
 		!add a scalar multiple, c, of the kth row to w
