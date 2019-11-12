@@ -11,7 +11,7 @@ program main
 	integer :: max_its
 	
 	
-	integer :: i,k
+	integer :: i,j,k
 	real(kind=8) :: sigma,test
 	
 	!OOP sparse
@@ -32,7 +32,7 @@ program main
 	!input
 	integer :: cac,skip,cull
 	character(32) :: flagchar
-	character(12) :: recognised_methods(7),recognised_sr(5),recognised_phantom(2)
+	character(12) :: recognised_methods(9),recognised_sr(5),recognised_phantom(2)
 	character(2) :: flag
 	character(30) :: inputfile,outputfile,inputmethod,inputstoprule,inputphantom,inputorder
 	logical :: test_mode,verbose_mode,stop_rule,customord
@@ -60,8 +60,8 @@ program main
 	outputfile = 'sol.txt'
 	inputmethod = 'kaczmarz'
 	inputphantom = ' '
-	recognised_methods = (/'kaczmarz    ','randkaczmarz','symkaczmarz ','rand        ','sym         '&
-						  ,'graddescent ','gd          '/)
+	recognised_methods = (/'kaczmarz    ','randkaczmarz','rand        ','symkaczmarz ','sym         '&
+						  ,'graddescent ','gd          ','cimmino     ','sirt        '/)
 	recognised_sr =      (/'errorgauge  ','mutualstep  ','eg          ','ms          ','twin        '/)
 	recognised_phantom = (/'shepplogan  ','            '/)
 	call options%initialise()
@@ -80,8 +80,8 @@ program main
 				write(*,*) "-i[inputfile]    Provide suitable inputfile."
 				write(*,*) "-o[outputfile]   Choose output file name."
 				write(*,*) "-m[method]       Choose which method to use. Standard is Kaczmarz."
-				write(*,*) "                 Choose from 'kaczmarz', 'symkaczmarz', 'randkaczmarz' or 'graddescent'."
-				write(*,*) "                 Methods 'sym','rand' and 'gd' are also recognised."
+				write(*,*) "                 Choose from: ",("'"//trim(recognised_methods(j))//"', ", j=1,8),&
+											 "and '",trim(recognised_methods(9)),"'."
 				write(*,*) "-s[stoprule]     Choose what stopping rule to use. Standard is none."
 				write(*,*) "                 Choose from 'errorgauge' or 'mutualstep'. Omit if no stopping rule is required."
 				write(*,*) "-K[iterations]   Set maximum number of iterations, standard is 100."
@@ -177,7 +177,7 @@ program main
 		SL = shepplogan(dat%n)
 		sl_vec = vectorise(SL)
 		b = A%matvecmul(sl_vec)
-		call add_white_noise(bt,noise,b,5d-3)
+		call add_white_noise(bt,noise,b,0d0)
 		
 		call system_clock ( t1, clock_rate, clock_max )
 
@@ -235,7 +235,7 @@ program main
 		write(*,*) "space saved: ", (1d0-(2d0*A%nnz + A%m + 1)/(1d0*A%m*A%n))*100d0 ,"%"
 		write(*,*) " "
 		write(*,*) " "
-	endif
+	endif	
 	
 	
 	!======================================
@@ -253,6 +253,8 @@ program main
 	
 	if (trim(inputmethod) == 'graddescent') then
 		call gradient_descent(xout,A,bt,max_its,options = options)
+	elseif (trim(inputmethod) == 'cimmino' .or. trim(inputmethod) == 'sirt') then
+		call sirt(xout,inputmethod,A,bt,(/max_its/),options = options)
 	else
 		if (stop_rule) then
 			if (customord) then

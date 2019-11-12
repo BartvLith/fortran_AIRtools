@@ -978,7 +978,7 @@ contains
 		implicit none
 		!inputs
 		character(*) :: sirt_method
-		class(sparse_matrix),intent(in) :: A
+		class(sparse_matrix) :: A
 		real(kind=8),intent(in) :: b(A%m)
 		integer,intent(in) :: Kin(:)
 		real(kind=8),intent(in),optional :: x0(A%n)
@@ -986,7 +986,7 @@ contains
 		
 		!local
 		integer :: i,maxits
-		real(kind=8),dimension(A%m) :: Mdiag
+		real(kind=8),dimension(A%m) :: Mdiag,r
 		real(kind=8),dimension(A%n)::x,xn,xout,Ddiag
 		real(kind=8) :: ub,lb
 		logical :: verb,upb,lwrb
@@ -1039,24 +1039,29 @@ contains
 			if (verb) write(*,*) "Using all-zero initial condition."
 		endif
 		
-		write(*,*) "================================"
+		
 		
 		select case(sirt_method)
 			case ('cimmino')
-				Mdiag = A%m*A%row_norms(2)**2
+				Mdiag = A%m * (A%row_norms(2))**2
 				Ddiag = 1d0
 				if (verb) write(*,*) "Using Cimmino's method."
 			case ('sirt')
 				Mdiag = A%row_norms(1)
-				Ddiag = A%column_norms(1)
+				call A%transpose()
+				Ddiag = A%row_norms(1)
+				call A%transpose()
 				if (verb) write(*,*) "Using SIRT method."
 			case default
 				stop "Not a recognised SIRT method."
 		end select
 		
 		
+		if(verb) write(*,*) "================================"
+		
+		r = 0d0
 		do i = 1,maxits
-			xn = x + Ddiag*A%transvecmul( (b - A%matvecmul(x))/Mdiag )
+			xn = x + A%transvecmul( (b - A%matvecmul(x))/Mdiag )/Ddiag
 			
 			!apply bounds
 			if (upb .and. .not. lwrb) then
@@ -1072,6 +1077,9 @@ contains
 			
 			
 			if (verb) write(*,*) "Iteration ",i," of ",maxits
+			
+			
+			!TO ADD: record the iterations specified in Kin
 			
 		enddo
 		

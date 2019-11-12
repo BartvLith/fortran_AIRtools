@@ -272,6 +272,8 @@ contains
 						!compute column numbers
 						Amat%JA(count) = floor(xm)*dat%n + (dat%n - floor(ym))
 						
+						if (Amat%JA(count)==0) stop "++ Something went wrong"
+						
 					
 					endif
 				enddo

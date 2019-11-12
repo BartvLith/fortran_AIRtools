@@ -394,12 +394,12 @@ contains
 		B = reorder(A)
 		temp = A%m
 		A%m = A%n
-		A%n = temp				
+		A%n = temp
 		call move_alloc(B%IA,A%IA)
 		call move_alloc(B%JA,A%JA)
-		allocate(A%vA(size(A%va)))
-		A%vA = B%va
+		call move_alloc(B%vA,A%vA)
 		A%nnz = B%nnz
+		
 	end subroutine transposition
 	
 	function conv_to_CSC(A) result(B)
@@ -498,15 +498,28 @@ contains
 		type(sparse_matrix) :: B
 
 		!local variables
-		integer :: i,j,nnz,nr,nc,t,cumsum,col,row,dest,last
+		integer :: i,j,k,nnz,nr,nc,t,cumsum,col,row,dest,last
 
 		!find the size of the matrix
 		nr = A%m
 		nc = A%n
 		nnz = A%nnz
-
+		
+		
 		B = A
-
+		
+		deallocate(B%IA)
+		
+		if (size(A%IA)==(A%m+1)) then
+			allocate(B%IA(0:A%n))
+		elseif (size(A%IA)==(A%n+1)) then
+			allocate(B%IA(0:A%m))
+		else
+			stop "Wrong array sizes in reorder."
+		endif
+			
+		
+		
 		!count the number of nonzeros in each column
 		B%IA = 0
 		do i = 1,nnz
@@ -736,6 +749,7 @@ contains
 		
 		if (trans) call A%transpose()
 		
+		
 		nrA = 0d0
 		do k=1,A%m
 			if (A%IA(k)>A%IA(k-1)) then !only if the row contains any nonzeros
@@ -745,9 +759,12 @@ contains
 				enddo
 			endif
 		enddo
+		
+		
 		nrA = nrA**(1d0/p)
 		
 		if (trans) call A%transpose()
+		
 		
 	end function compute_row_norms
 	
@@ -756,9 +773,11 @@ contains
 		class(sparse_matrix) :: A
 		integer,intent(in) :: p
 		real(kind=8) :: ncA(A%n)
+		type(sparse_matrix) :: B
 		
 		call A%transpose()
 		ncA = A%row_norms(p)
+		call A%transpose()
 		
 	end function compute_column_norms
 	
