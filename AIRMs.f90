@@ -988,7 +988,7 @@ contains
 		integer :: i,maxits
 		real(kind=8),dimension(A%m) :: Mdiag,r
 		real(kind=8),dimension(A%n)::x,xn,xout,Ddiag
-		real(kind=8) :: ub,lb
+		real(kind=8) :: ub,lb,omg
 		logical :: verb,upb,lwrb
 		
 		maxits = maxval(Kin)
@@ -998,7 +998,7 @@ contains
 			ub = options%ubound
 			lb = options%lbound
 			!dmp = options%damp
-			!omg = options%relaxpar
+			omg = options%relaxpar
 			verb = options%verbose
 			
 			if (verb) then
@@ -1018,6 +1018,12 @@ contains
 					write(*,*) "Using lower bound: ",lb
 				else
 					write(*,*) "No lower bound present."
+				endif
+				!if (omg<=0 .or. omg >=2) stop "Relaxation parameter needs to be in (0,2)."
+				if (omg==1d0) then
+					write(*,*) "Using standard relaxation parameter: 1."
+				else
+					write(*,*) "Using relaxation parameter: ",omg
 				endif
 				write(*,*) "================================"
 			endif
@@ -1046,12 +1052,12 @@ contains
 				Mdiag = A%m * (A%row_norms(2))**2
 				Ddiag = 1d0
 				if (verb) write(*,*) "Using Cimmino's method."
-			case ('sirt')
+			case ('sart')
 				Mdiag = A%row_norms(1)
 				call A%transpose()
 				Ddiag = A%row_norms(1)
 				call A%transpose()
-				if (verb) write(*,*) "Using SIRT method."
+				if (verb) write(*,*) "Using SART method."
 			case default
 				stop "Not a recognised SIRT method."
 		end select
@@ -1061,7 +1067,7 @@ contains
 		
 		r = 0d0
 		do i = 1,maxits
-			xn = x + A%transvecmul( (b - A%matvecmul(x))/Mdiag )/Ddiag
+			xn = x + omg*A%transvecmul( (b - A%matvecmul(x))/Mdiag )/Ddiag
 			
 			!apply bounds
 			if (upb .and. .not. lwrb) then

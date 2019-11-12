@@ -32,12 +32,12 @@ program main
 	!input
 	integer :: cac,skip,cull
 	character(32) :: flagchar
-	character(12) :: recognised_methods(9),recognised_sr(5),recognised_phantom(2)
+	character(12) :: recognised_methods(10),recognised_sr(5),recognised_phantom(2)
 	character(2) :: flag
 	character(30) :: inputfile,outputfile,inputmethod,inputstoprule,inputphantom,inputorder
 	logical :: test_mode,verbose_mode,stop_rule,customord
 	type(data) :: dat
-	real(kind=8) :: inputlb,inputub
+	real(kind=8) :: inputlb,inputub,inputrelaxpar
 	real(kind=8),allocatable :: data_temp(:,:),theta_temp(:)
 	integer,allocatable :: ordering(:)
 	
@@ -61,7 +61,7 @@ program main
 	inputmethod = 'kaczmarz'
 	inputphantom = ' '
 	recognised_methods = (/'kaczmarz    ','randkaczmarz','rand        ','symkaczmarz ','sym         '&
-						  ,'graddescent ','gd          ','cimmino     ','sirt        '/)
+						  ,'graddescent ','gd          ','cimmino     ','sart        ','sirt        '/)
 	recognised_sr =      (/'errorgauge  ','mutualstep  ','eg          ','ms          ','twin        '/)
 	recognised_phantom = (/'shepplogan  ','            '/)
 	call options%initialise()
@@ -88,6 +88,7 @@ program main
 				write(*,*) "-O[orderfile]    Ordering of rows, supplied as a list of integers in a file. "
 				write(*,*) "-L[lowerbound]   Set lower bound."
 				write(*,*) "-U[upperbound]   Set upper bound."
+				write(*,*) "-R[relaxpar]     Set relaxation parameter."
 				write(*,*) "-t[phantom]      Test mode, runs a test phantom. Standard is Shepp-Logan."
 				write(*,*) "                 Possible inputs: 'shepplogan'."
 				write(*,*) "-c[cull]         Cull factor. Only use every cull angles, cull must be an integer."
@@ -120,6 +121,7 @@ program main
 				if (trim(inputmethod) == 'rand') inputmethod = 'randkaczmarz'
 				if (trim(inputmethod) == 'sym') inputmethod = 'symkaczmarz'
 				if (trim(inputmethod) == 'gd') inputmethod = 'graddescent'
+				if (trim(inputmethod) == 'sirt') inputmethod = 'sart'
 			case('-s')
 				stop_rule = .true.
 				READ(flagchar(3:32),*) inputstoprule
@@ -132,6 +134,9 @@ program main
 			case('-U')
 				READ(flagchar(3:32),*) inputub
 				call options%set_ubound(inputub)
+			case('-R')
+				READ(flagchar(3:32),*) inputrelaxpar
+				options%relaxpar = inputrelaxpar
 			case('-O')
 				READ(flagchar(3:32),*) inputorder
 				customord = .true.
@@ -253,7 +258,7 @@ program main
 	
 	if (trim(inputmethod) == 'graddescent') then
 		call gradient_descent(xout,A,bt,max_its,options = options)
-	elseif (trim(inputmethod) == 'cimmino' .or. trim(inputmethod) == 'sirt') then
+	elseif (trim(inputmethod) == 'cimmino' .or. trim(inputmethod) == 'sart') then
 		call sirt(xout,inputmethod,A,bt,(/max_its/),options = options)
 	else
 		if (stop_rule) then
@@ -291,11 +296,13 @@ program main
 	enddo
 	close(23)
 	
-	open(unit=24,file="errorgauge.txt",action="write",status="replace")
-	do k=1,max_its
-		write(24,*) EG(k)
-	enddo
-	close(24)
+	if (stop_rule) then
+		open(unit=24,file="errorgauge.txt",action="write",status="replace")
+		do k=1,max_its
+			write(24,*) EG(k)
+		enddo
+		close(24)
+	endif
 
 contains
 	
