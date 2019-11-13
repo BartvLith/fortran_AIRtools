@@ -2,10 +2,21 @@ module phantomgallery
 	use system_generation, only : pi
 	implicit none
 	
-	
+	! All functions in this module create a phantom with the of size N x N.
+	!
+	! Input:
+	!    N    Scalar denoting the nubmer of discretization intervals in each
+	!          dimesion, such that the phantom head consists of N^2 cells.
+	!
+	! Output:
+	!    X    The modified phantom head as a 2-dimensional array
+	!
+	!Some functions have optional inputs to modify the phantoms somewhat.
 contains
 	
 	function linspace(a,b,n) result(x)
+		!Creates an array of size n with values linearly distributed between a and b.
+		!The endpoints, a and b, are included.
 		implicit none
 		real(kind=8),intent(in) :: a,b
 		integer,intent(in) :: n
@@ -23,18 +34,68 @@ contains
 		enddo
 	end function linspace
 	
-	function shepplogan(N) result(x)
+	subroutine meshgrid(x,y,N,corners)
+		!create a rectangular meshgrid of N x N on the unit square [-1,1]^2
+		!optional input: the four corners of rectangle.
+		!corners = (/x0,x1,y0,y1/)
 		
-		! This function creates the modifed Shepp-Logan phantom with the
-		! discretization N x N, and returns it as a vector.
-		!
-		! Input:
-		!    N    Scalar denoting the nubmer of discretization intervals in each
-		!          dimesion, such that the phantom head consists of N^2 cells.
-		!
-		! Output:
-		!    X    The modified phantom head reshaped as a vector
-		!
+		implicit none
+		real(kind=8),dimension(0:N-1,0:N-1),intent(out) :: x,y
+		integer,intent(in) :: N
+		real(kind=8),optional :: corners(4)
+		
+		!local
+		real(kind=8) :: x0,x1,y0,y1
+		integer :: i
+		
+		if (present(corners)) then
+			x0 = corners(1)
+			x1 = corners(2)
+			y0 = corners(3)
+			y1 = corners(4)
+		else
+			x0 = -1
+			x1 = 1
+			y0 = -1
+			y1 = 1
+		endif
+			
+		
+		
+		!fill out a coordinate mesh for x
+		x(0,:) = linspace(x0,x1,N)
+		do i=1,N-1
+			x(i,:) = x(0,:)
+		enddo
+		
+		!coordinate mesh y is x rotated by 90 degrees
+		y(:,0) = linspace(y1,y0,N)
+		do i=1,N-1
+			y(:,i) = y(:,0)
+		enddo
+	end subroutine meshgrid
+	
+	function choose_phantom(phantom,N) result(x)
+		!Just a wrapper function that picks the right phantom based on the input string phantom
+		implicit none
+		character(*),intent(in) :: phantom
+		integer,intent(in) :: N
+		real(kind=8) :: x(N,N)
+		
+		select case(phantom)
+			case('shepplogan')
+				x = shepplogan(N)
+			case('smooth')
+				x = smooth(N)
+			case('threephases')
+				x = threephases(N)
+			case default
+				stop 'Not a recognised phantom.'
+		end select
+		
+	end function choose_phantom
+	
+	function shepplogan(N) result(x)
 		! This head phantom is the same as the Shepp-Logan except the intensities
 		! are changed to yield higher contrast in the image.
 		!
@@ -66,14 +127,7 @@ contains
 		e(10,:)= (/  .1d0  , .0230d0  , .0460d0  ,  .06d0  ,    -.605d0  ,     0d0 /)
 		
 		
-		!fill out a coordinate mesh for x
-		xc(0,:) = ( (/ (i,i=0,N-1) /) -(N-1)/2d0 )  /((N-1)/2d0)
-		do i=1,N-1
-			xc(i,:) = xc(0,:)
-		enddo
-		
-		!coordinate mesh y is x rotated by 90 degrees
-		yc = transpose(xc(:,N-1:0:-1))
+		call meshgrid(xc,yc,N)
 		
 		x = 0d0
 		!for every elipse 
@@ -91,9 +145,99 @@ contains
 		
 	end function shepplogan
 	
+	function smooth(N,pin) result(x)
+		!SMOOTH Creates a 2D test image of a smooth function
+		!Per Christian Hansen, May 8, 2012, DTU Compute.
+		
+		implicit none
+		integer, intent(in) :: N
+		real(kind=8) :: x(N,N)
+		integer,optional :: pin
+		
+		real(kind=8),dimension(0:N-1,0:N-1) :: xc,yc
+		integer :: i,p
+		real(kind=8) :: sigma,c(4,2),a(4)
+		
+		if (present(pin)) then
+			p = pin
+		else
+			p = 4
+		endif
+		
+		call meshgrid(xc,yc,N,(/1,N,N,1/)*1d0)
+ 		sigma = 0.25d0*N
+ 		c(1,:) = (/0.6d0*N, 0.6d0*N/)
+		c(2,:) = (/0.5*N, 0.3*N/)
+		c(3,:) = (/ 0.2*N ,0.7*N/)
+		c(4,:) =  (/0.8*N , 0.2*N/)
+ 		a = (/1d0, 0.5d0, 0.7d0, 0.9d0/)
+		x = 0d0
+ 		do i=1,p
+			x = x + a(i)*exp( - (xc-c(i,1))**2/(1.2d0*sigma)**2 - (yc-c(i,2))**2/sigma**2  )
+! 		    im = im + a(i)*exp( - (I-c(i,1)).^2/(1.2*sigma)^2 - (J-c(i,2)).^2/sigma^2);
+ 		enddo
+ 		x = x/maxval(x)
+		
+	end function smooth
+	
+	function threephases(N,pin,seed) result(x)
+		!THREEPHASES Creates a 2D test image with three different phases
+		!Per Christian Hansen, Sept. 30, 2014, DTU Compute.
+		implicit none
+		integer, intent(in) :: N
+		real(kind=8) :: x(N,N)
+		integer,optional :: pin,seed(:)
+		
+		!local
+		integer :: i,p
+		real(kind=8),dimension(0:N-1,0:N-1) :: xc,yc
+		real(kind=8) :: sigma1,sigma2,t1,t2,im1(N,N),im2(N,N)
+		real(kind=8),allocatable :: c(:,:)
+		
+		if (present(pin)) then
+			p = pin
+		else
+			p = 100
+		endif
+		if (present(seed)) call random_seed(put=seed)
+		
+		call meshgrid(xc,yc,N,(/1,N,N,1/)*1d0)
+		
+		sigma1 = 0.025d0*N
+		allocate(c(p,2))
+		call random_number(c)
+		c = c*N
+		im1 = 0d0
+		
+		!generate first image
+		do i=1,p
+			im1 = im1 + exp(-abs(xc-c(i,1))**3/(2.5d0*sigma1)**3 - abs(yc-c(i,2))**3/(2.5d0*sigma1)**3  )
+		enddo
+		t1 = .35d0
+		where( im1 <  t1) im1 = 0
+		where( im1 >= t1) im1 = 2d0
+		
+		!generate second image
+		sigma2 = 0.025d0*N
+		call random_number(c)
+		c = c*N
+		im2 = 0d0
+		do i=1,p
+			im2 = im2 + exp(-abs(xc-c(i,1))**3/(2.5d0*sigma2)**2 - abs(yc-c(i,2))**3/(2.5d0*sigma2)**2  )
+		enddo
+		t2 = 0.55d0
+		where( im2 < t2) im2 = 0d0
+		where( im2 >= t2) im2 = 1d0
+		
+		!combine the two images
+		x = im1 + im2
+		where( x == 3d0 ) x = 1d0
+		x = x/maxval(x);
+	end function threephases
 	
 	function vectorise(x) result(v)
-		!vectorise an N-by-N matrix into a vector according to how matlab reshapes things
+		!Vectorise an N-by-N matrix into a vector according to columns.
+		!This is the same way MATLAB vectorises things, conveniently.
 		implicit none
 		real(kind=8),intent(in) :: x(:,:)
 		real(kind=8) :: v(size(x))

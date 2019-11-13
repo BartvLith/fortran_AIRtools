@@ -24,7 +24,7 @@ program main
 	integer :: final_it
 	
 	!Shepp-Logan
-	real(kind=8),allocatable :: SL(:,:),sl_vec(:),b(:),bt(:),noise(:)
+	real(kind=8),allocatable :: phantom(:,:),ph_vec(:),b(:),bt(:),noise(:)
 	
 	!timing
 	integer :: t0,t1,clock_rate,clock_max
@@ -32,7 +32,7 @@ program main
 	!input
 	integer :: cac,skip,cull
 	character(32) :: flagchar
-	character(12) :: recognised_methods(10),recognised_sr(5),recognised_phantom(2)
+	character(12) :: recognised_methods(10),recognised_sr(5),recognised_phantom(4)
 	character(2) :: flag
 	character(30) :: inputfile,outputfile,inputmethod,inputstoprule,inputphantom,inputorder
 	logical :: test_mode,verbose_mode,stop_rule,customord
@@ -63,7 +63,7 @@ program main
 	recognised_methods = (/'kaczmarz    ','randkaczmarz','rand        ','symkaczmarz ','sym         '&
 						  ,'graddescent ','gd          ','cimmino     ','sart        ','sirt        '/)
 	recognised_sr =      (/'errorgauge  ','mutualstep  ','eg          ','ms          ','twin        '/)
-	recognised_phantom = (/'shepplogan  ','            '/)
+	recognised_phantom = (/'shepplogan  ','            ','smooth      ','threephases '/)
 	call options%initialise()
 	cac = COMMAND_ARGUMENT_COUNT()
 	if (cac == 0) stop "Supply input file or activate test mode."
@@ -159,15 +159,15 @@ program main
 	
 	if (test_mode) then
 		dat%n=128
-		dat%nth=50
+		dat%nth=100
 		dat%p=256
-		dat%r = 1d0
-		dat%dw=1d0
-		dat%sd=1d0
+		dat%r  = sqrt(2d0)
+		dat%dw = 1d0!2d0*sqrt(2d0)
+		dat%sd = 1d0
 		
 		allocate(dat%theta(dat%nth))
-		allocate(SL(dat%n,dat%n))
-		allocate(sl_vec(dat%n**2))
+		allocate(phantom(dat%n,dat%n))
+		allocate(ph_vec(dat%n**2))
 		allocate(b(dat%nth*dat%p))
 		allocate(bt(dat%nth*dat%p))
 		allocate(noise(dat%nth*dat%p))
@@ -179,10 +179,10 @@ program main
 		
 		A = fanlineartomo(dat)		
 		
-		SL = shepplogan(dat%n)
-		sl_vec = vectorise(SL)
-		b = A%matvecmul(sl_vec)
-		call add_white_noise(bt,noise,b,0d0)
+		phantom = choose_phantom(trim(inputphantom),dat%n) !change this line to pick the phantom based on input
+		ph_vec = vectorise(phantom)
+		b = A%matvecmul(ph_vec)
+		call add_white_noise(bt,noise,b,1d-2)
 		
 		call system_clock ( t1, clock_rate, clock_max )
 
@@ -278,7 +278,7 @@ program main
 		endif
 	endif
 	
-	if (verbose_mode .and. test_mode) write(*,*) "Final error: ",norm2(sl_vec-xout)/norm2(sl_vec)
+	if (verbose_mode .and. test_mode) write(*,*) "Final error: ",norm2(ph_vec-xout)/norm2(ph_vec)
 	
 	call system_clock ( t1, clock_rate, clock_max )
 	if (verbose_mode) write(*,*) "Done in ",real(t1-t0)/real(clock_rate)," seconds."
