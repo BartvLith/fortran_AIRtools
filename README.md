@@ -9,7 +9,8 @@ High-performance computing implementation of (parts of) the Matlab package AIRto
 - Make matrix-free implementations.
 
 ## Algebraic Iterative Reconstruction methods
-Algebraic Iterative Reconstruction (AIR) methods are a type of iterative linear solver that are popular in computed tomography (CT) reconstructions. Here's a breakdown of the various modules and the main program.
+Algebraic Iterative Reconstruction (AIR) methods are a type of iterative linear solver that are popular in computed tomography (CT) reconstructions. The class includes Kaczmarz's method and other Algebraic Reconstruction Techniques (ART), Cimmino's method and other Simultaneous Iterative Reconstruction Techniques (SIRT).
+Here's a breakdown of the various modules and the main program.
 
 ## Contents
 
@@ -22,8 +23,29 @@ sparse_matrices.f90 implements Compressed Sparse Row (CSR) and Compressed Sparse
 ### system_generation.f90
 system_generation.f90 currently implements some aspects of generating the CT linear system, such as generating the system matrix and reading in data. At the moment, this is limited to a fan linear geometry, but I intend to expand this in the future.
 
-### AIRMs.f90
+## AIRMs.f90
 AIRMs.f90 contains the reconstruction methods. Currently, there is the Algebraic Reconstruction Technique (ART) family which contains Kaczmarz, symmetric Kaczmarz and random Kaczmarz. Some members of the Simultaneous Iterative Reconstruction Technique (SIRT) are implemented: Cimmino's method and SART (simultaneous ART). There's also an implementation of gradient descent. More methods may be added in the future.
+
+To use a particular method, use the flag -m[methodname]. Standard is Kaczmarz. There are various options available, such as box constraints and relaxation parameter. To activate a lower bound, use -L[lbound]. To activate the upper bound, use -U[ubound]. The relaxation parameter is set using -R[relaxpar]. There are also options to use a stopping rule by means of -s[stoprulename] and ordering with -O[orderingfile]. I will provide some example programs  soon.
+
+### Kaczmarz
+Processes each row separately by projecting to the hyperplanes successively, methodname = 'kaczmarz'. Cyclicly goes through the row ordering. No input flag -m will also result in Kaczmarz being used with "natural" row ordering.
+
+### Symmetric Kaczmarz
+Each sweep of the rows is followed by a sweep in the reversed order. This has the effect of producing a symmetric iteration matrix. methodname = 'symkaczmarz' or 'sym'.
+
+### Random Kaczmarz
+The row ordering is picked randomly instead of cyclicly. methodname = 'randkaczmarz' or 'rand'.
+
+### Cimmino
+Processes the rows simultaneously by reflecting in the hyperplanes one by one and averaging the resulting intermediate solutions. methodname = 'cimmino'.
+
+### SART
+Processes the rows simultaneously by weighing the rows and columns to unit vectors. methodname = 'sart' or 'sirt'.
+
+### Gradient descent
+Classical gradient descend, computes the gradient of 1/2 \| A*x-b \|^2. methodname = 'graddescent' or 'gd'.
+
 
 ## phantomgallery.f90
 phantomgallery.f90 is intended to be a library of test problems for CT applications. Currently there are some 9 phantoms implemented.
