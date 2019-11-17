@@ -35,7 +35,7 @@ Processes each row separately by projecting to the hyperplanes successively, met
 Each sweep of the rows is followed by a sweep in the reversed order. This has the effect of producing a symmetric iteration matrix. methodname = 'symkaczmarz' or 'sym'.
 
 ### Random Kaczmarz
-The row ordering is picked randomly instead of cyclicly. methodname = 'randkaczmarz' or 'rand'.
+The row ordering is picked randomly instead of cyclicly. There is an internal option to use row probability scaled with row norms, according to Strohmer and Vershynin. Otherwise uniform probability is used. methodname = 'randkaczmarz' or 'rand'.
 
 ### Cimmino
 Processes the rows simultaneously by reflecting in the hyperplanes one by one and averaging the resulting intermediate solutions. methodname = 'cimmino'.
