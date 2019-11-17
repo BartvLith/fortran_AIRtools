@@ -32,12 +32,12 @@ program main
 	!input
 	integer :: cac,skip,cull
 	character(32) :: flagchar
-	character(12) :: recognised_methods(10),recognised_sr(5),recognised_phantom(4)
+	character(12) :: recognised_methods(10),recognised_sr(5),recognised_phantom(10)
 	character(2) :: flag
 	character(30) :: inputfile,outputfile,inputmethod,inputstoprule,inputphantom,inputorder
 	logical :: test_mode,verbose_mode,stop_rule,customord
 	type(data) :: dat
-	real(kind=8) :: inputlb,inputub,inputrelaxpar
+	real(kind=8) :: inputlb,inputub,inputrelaxpar,inputnoise
 	real(kind=8),allocatable :: data_temp(:,:),theta_temp(:)
 	integer,allocatable :: ordering(:)
 	
@@ -57,13 +57,15 @@ program main
 	test_mode = .false.
 	stop_rule = .false.
 	customord = .false.
+	inputnoise = 1d-3
 	outputfile = 'sol.txt'
 	inputmethod = 'kaczmarz'
 	inputphantom = ' '
 	recognised_methods = (/'kaczmarz    ','randkaczmarz','rand        ','symkaczmarz ','sym         '&
 						  ,'graddescent ','gd          ','cimmino     ','sart        ','sirt        '/)
 	recognised_sr =      (/'errorgauge  ','mutualstep  ','eg          ','ms          ','twin        '/)
-	recognised_phantom = (/'shepplogan  ','            ','smooth      ','threephases '/)
+	recognised_phantom = (/'shepplogan  ','            ','smooth      ','3phases     ','3phasesmooth'&
+						  ,'binary      ','4phases     ','mst         ','grains      ','bubbles     '/)
 	call options%initialise()
 	cac = COMMAND_ARGUMENT_COUNT()
 	if (cac == 0) stop "Supply input file or activate test mode."
@@ -122,6 +124,9 @@ program main
 				if (trim(inputmethod) == 'sym') inputmethod = 'symkaczmarz'
 				if (trim(inputmethod) == 'gd') inputmethod = 'graddescent'
 				if (trim(inputmethod) == 'sirt') inputmethod = 'sart'
+			case('-n')
+				READ(flagchar(3:32),*) inputnoise
+				if (inputnoise<0d0) stop "Provide positive noise level."
 			case('-s')
 				stop_rule = .true.
 				READ(flagchar(3:32),*) inputstoprule
@@ -159,8 +164,8 @@ program main
 	
 	if (test_mode) then
 		dat%n=128
-		dat%nth=100
-		dat%p=256
+		dat%nth = 150
+		dat%p = 1.5d0*dat%n
 		dat%r  = sqrt(2d0)
 		dat%dw = 1d0!2d0*sqrt(2d0)
 		dat%sd = 1d0
@@ -182,7 +187,7 @@ program main
 		phantom = choose_phantom(trim(inputphantom),dat%n) !change this line to pick the phantom based on input
 		ph_vec = vectorise(phantom)
 		b = A%matvecmul(ph_vec)
-		call add_white_noise(bt,noise,b,1d-2)
+		call add_white_noise(bt,noise,b,inputnoise)
 		
 		call system_clock ( t1, clock_rate, clock_max )
 
@@ -239,7 +244,7 @@ program main
 		write(*,*) "sparsity level: ",(1d0*A%nnz)/(1d0*A%m*A%n)
 		write(*,*) "space saved: ", (1d0-(2d0*A%nnz + A%m + 1)/(1d0*A%m*A%n))*100d0 ,"%"
 		write(*,*) " "
-		write(*,*) " "
+		if (test_mode) write(*,*) "Noise level: ",inputnoise
 	endif	
 	
 	
@@ -268,7 +273,6 @@ program main
 				call twin_art(xout,final_it,Xstore,Ystore,EG,inputmethod,inputstoprule,A,bt,(/max_its/),options = options)
 			endif
 		else
-			write(*,*) "here"
 			if (customord) then
 				call art(Xstore,inputmethod,A,bt,(/max_its/),order=ordering,options = options)
 			else
