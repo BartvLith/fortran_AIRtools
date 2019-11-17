@@ -1,6 +1,13 @@
 # FAIRtools
 High-performance computing implementation of (parts of) the Matlab package AIRtools II. For more information on AIRtools II, see the [research article](https://link.springer.com/article/10.1007/s11075-017-0430-x); the [AIRtools II homepage](http://people.compute.dtu.dk/pcha/AIRtoolsII/index.html); or the [GitHub repository](https://github.com/jakobsj/AIRToolsII).
 
+### To-do list
+- Always add more test phantoms.
+- Parallelise computations.
+- Implement blocking support.
+- Add feature to store and read-in the system matrix.
+- Make matrix-free implementations.
+
 ## Algebraic Iterative Reconstruction methods
 Algebraic Iterative Reconstruction (AIR) methods are a type of iterative linear solver that are popular in computed tomography (CT) reconstructions. Here's a breakdown of the various modules and the main program.
 
