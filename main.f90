@@ -163,8 +163,8 @@ program main
 	!======================================
 	
 	if (test_mode) then
-		dat%n=128
-		dat%nth = 150
+		dat%n=256
+		dat%nth = 200
 		dat%p = 1.5d0*dat%n
 		dat%r  = sqrt(2d0)
 		dat%dw = 1d0!2d0*sqrt(2d0)

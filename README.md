@@ -1,4 +1,4 @@
-# fortran_AIRtools
+# FAIRtools
 Partial translation of AIRtools II to fortran.
 
 Algebraic Iterative Reconstruction (AIR) methods are a type of iterative linear solver that are popular in computed tomography (CT) reconstructions. Here's a breakdown of the various modules and the main program.
