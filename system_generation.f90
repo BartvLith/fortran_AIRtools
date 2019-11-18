@@ -127,8 +127,6 @@ contains
 			y0th = sin(dat%theta(i))*x0 + cos(dat%theta(i))*y0
 			
 			
-		
-		
 			!rotated ray parameters
 			ath = -x0th/r
 			bth = -y0th/r
@@ -332,6 +330,7 @@ contains
 		enddo
 	
 		close(10)
+		if (verb) write(*,*) "Opening file: ",trim(inputfile)
 	end subroutine read_data
 	
 	subroutine read_ordering(ordering,inputfile,verbose)

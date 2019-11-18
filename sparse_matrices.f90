@@ -358,9 +358,13 @@ contains
 
 		w = 0d0 !nullify everything
 		
+		!$omp parallel shared(w)
+		!$OMP do
 		do k=1,A%m !loop through the rows
 			w(k) = A%rowvecmult(k,v)
 		enddo
+		!$OMP end do
+		!$omp end parallel
 	end function MMRS
 	
 	function MMCS(A,v) result(w)
@@ -375,6 +379,8 @@ contains
 
 		w = 0d0 !nullify everything
 		
+		!$omp parallel shared(w)
+		!$omp do
 		do k=1,A%n !run through the components of v
 			if (A%IA(k)>A%IA(k-1)) then !only if the column contains any nonzeros
 				do i=A%IA(k-1)+1,A%IA(k)!loop through nonzeros
@@ -382,6 +388,8 @@ contains
 				enddo
 			endif
 		enddo
+		!$omp end do
+		!$omp end parallel
 	end function MMCS	
 	
 	subroutine transposition(A)
@@ -751,6 +759,8 @@ contains
 		
 		
 		nrA = 0d0
+		!$omp parallel shared(nrA)
+		!$omp do
 		do k=1,A%m
 			if (A%IA(k)>A%IA(k-1)) then !only if the row contains any nonzeros
 				do i=A%IA(k-1)+1,A%IA(k)!loop through nonzeros
@@ -759,7 +769,8 @@ contains
 				enddo
 			endif
 		enddo
-		
+		!$omp end do
+		!$omp end parallel
 		
 		nrA = nrA**(1d0/p)
 		

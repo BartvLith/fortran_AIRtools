@@ -3,6 +3,7 @@ program main
 	use sparse_matrices
 	use airms
 	use phantomgallery
+	!$ use omp_lib
 
 	implicit none
 	
@@ -42,9 +43,6 @@ program main
 	integer,allocatable :: ordering(:)
 	
 	
-	
-	
-	
 	!======================================
 	!
 	! INPUT
@@ -81,10 +79,10 @@ program main
 				write(*,*) "Main CT AIR tools input flags:"
 				write(*,*) "-i[inputfile]    Provide suitable inputfile."
 				write(*,*) "-o[outputfile]   Choose output file name."
-				write(*,*) "-m[method]       Choose which method to use. Standard is Kaczmarz."
+				write(*,*) "-M[method]       Choose which method to use. Standard is Kaczmarz."
 				write(*,*) "                 Choose from: ",("'"//trim(recognised_methods(j))//"', ", j=1,8),&
 											 "and '",trim(recognised_methods(9)),"'."
-				write(*,*) "-s[stoprule]     Choose what stopping rule to use. Standard is none."
+				write(*,*) "-S[stoprule]     Choose what stopping rule to use. Standard is none."
 				write(*,*) "                 Choose from 'errorgauge' or 'mutualstep'. Omit if no stopping rule is required."
 				write(*,*) "-K[iterations]   Set maximum number of iterations, standard is 100."
 				write(*,*) "-O[orderfile]    Ordering of rows, supplied as a list of integers in a file. "
@@ -115,7 +113,7 @@ program main
 				READ(flagchar(3:32),*)max_its
 			case('-c') !set row skip
 				READ(flagchar(3:32),*) skip
-			case('-m')
+			case('-M')
 				READ(flagchar(3:32),*) inputmethod
 				if ( .not. any(inputmethod == recognised_methods) ) then
 					stop "Not a recognised stopping rule. Use -h for help."
@@ -127,7 +125,7 @@ program main
 			case('-n')
 				READ(flagchar(3:32),*) inputnoise
 				if (inputnoise<0d0) stop "Provide positive noise level."
-			case('-s')
+			case('-S')
 				stop_rule = .true.
 				READ(flagchar(3:32),*) inputstoprule
 				if ( .not. any(inputstoprule == recognised_sr)) stop "Not a recognised stopping rule. Choose from 'errorgauge' or 'mutualstep'."
@@ -153,7 +151,12 @@ program main
 			case default
 				stop "Not a recognised flag, use -h for help."
 		end select
-	enddo
+	enddo	
+	
+	if (verbose_mode) then
+		!$ write(*,*) "Parallel processing enabled."
+		!$ write(*,*) "Number of threads:",omp_get_max_threads()
+	endif
 	
 	
 	!======================================
@@ -179,10 +182,9 @@ program main
 		
 		dat%theta = linspace(0d0,2*pi,dat%nth)
 		
-		if (verbose_mode) write(*,*) "Constructing matrix..."
 		call system_clock ( t0, clock_rate, clock_max )
-		
-		A = fanlineartomo(dat)		
+		if (verbose_mode) write(*,*) "Constructing matrix..."
+		A = fanlineartomo(dat)
 		
 		phantom = choose_phantom(trim(inputphantom),dat%n) !change this line to pick the phantom based on input
 		ph_vec = vectorise(phantom)
@@ -225,8 +227,10 @@ program main
 		dat%R = dat%R/grid_size
 		dat%dw = dat%dw/grid_size
 		dat%sd = dat%sd/grid_size
+		
+		if (verbose_mode) write(*,*) "Constructing matrix..."
 		A = fanlineartomo(dat)
-		call A%multiply_by_scalar(grid_size/dat%N)
+		call A%multiply_by_scalar(grid_size/dat%N)		
 		
 		allocate(bt(A%m))
 		bt = -log(dat%T)

@@ -4,7 +4,7 @@ LFLAGS =# -L$(BLAS_PATH)
 LIB = #-llapack -lblas
 
 
-FFLAGS = #-g -C -fopenmp -O3 -fbackslash
+FFLAGS = -g -C -O3 -fbackslash -fopenmp
 
 .PHONY: clean help
 
