@@ -14,6 +14,26 @@ module system_generation
 	
 	
 contains
+	function linspace(a,b,n) result(x)
+		!Creates an array of size n with values linearly distributed between a and b.
+		!The endpoints, a and b, are included.
+		implicit none
+		real(kind=8),intent(in) :: a,b
+		integer,intent(in) :: n
+		real(kind=8) :: x(n)
+		
+		!local
+		integer :: i
+		real(kind=8) :: c,d
+		
+		c = (b-a)/(n-1)
+		d = a-c
+		
+		do i=1,n
+			x(i) = c*i+d
+		enddo
+	end function linspace
+	
 	recursive subroutine quicksort(a,IND, first, last)
 	  implicit none
 	  real(kind=8) ::  a(:)
@@ -286,6 +306,191 @@ contains
 		
 	end function fanlineartomo
 	
+	function paralleltomo(dat) result(Amat)
+		class(data),intent(in) :: dat
+		type(csr_matrix) :: Amat
+		
+		integer :: i,j,k,m,n_int,count
+		real(kind=8),dimension(dat%p) :: x0,y0,x0th,y0th
+		real(kind=8) :: d,a,b,ath,bth,dew,xdth,ydth,xm,ym,test_val
+		real(kind=8),dimension(dat%n+1) :: x,y,tx,yx,ty,xy
+		real(kind=8),dimension(2*dat%n+2) :: t,xxy,yxy,aval,temp_xxy,temp_yxy
+		integer,dimension(2*dat%n+2) :: indices,col
+		real(kind=8) :: omega(dat%p),deposall(dat%p)
+		real(kind=8),allocatable,dimension(:) :: depos
+	
+	
+		!sparse matrix stuff
+		integer :: nnz
+		real(kind=8),allocatable,dimension(:) :: temp
+		integer,allocatable,dimension(:) :: jtemp
+		
+		d = dat%p-1
+		x0 = linspace(-.5d0*d,.5d0*d,dat%p)
+		y0 = 0*x0
+		x = linspace(-.5d0*dat%n,.5d0*dat%n,dat%n+1)
+		y = x
+		
+
+		!initiate CSR arrays
+		nnz = 0
+		allocate(Amat%IA(0:dat%nth*dat%p))
+		Amat%IA(0) = 0
+		
+		!Perform the entire computation once without recording values to determine nnz.
+		!Once nnz is determined, the computation is repeated but now values are recorded.
+		!This is waaaaay faster than growing the arrays on the fly. It easily saves a
+		!factor 10 in computing time.
+		
+		do i=1,dat%nth!loop over all angles
+
+			!rotated starting position
+			x0th = cos(dat%theta(i))*x0 - sin(dat%theta(i))*y0
+			y0th = sin(dat%theta(i))*x0 + cos(dat%theta(i))*y0
+			
+			
+			a = -sin(dat%theta(i))
+			b = cos(dat%theta(i))
+			
+			do j=1,dat%p!loop over all rays
+				!use the parametrisation of the line to get the y-coordinates of the intersections of constant x
+				tx = (x-x0th(j))/a
+				yx = b*tx + y0th(j)
+
+
+				!use the parametrisation of the line to get the x-coordinates of the intersections of constant y
+				ty = (y-y0th(j))/b
+				xy = a*ty+x0th(j)
+
+				!collect the intersection times and coordinates
+				t = (/tx,ty/)
+				xxy = (/x,xy/)
+				yxy = (/yx,y/)
+			
+				!sort the intersection times and sort along the coordinates
+				indices = (/( k, k = 1, 2*dat%n+2 )/)
+				call quicksort(t,indices)
+				xxy = xxy(indices)
+				yxy = yxy(indices)
+			
+			
+				!not all intersection points are valid, sift out those that fall outside
+				n_int = 0
+				temp_xxy = 0d0
+				temp_yxy = 0d0
+				do k=1,2*dat%n+2
+					if (xxy(k) >= -.5d0*dat%n .and. xxy(k) <= .5d0*dat%n .and. yxy(k) >= -.5d0*dat%n .and. yxy(k) <= .5d0*dat%n) then
+						n_int = n_int+1
+						temp_xxy(n_int) = xxy(k)
+						temp_yxy(n_int) = yxy(k)
+					endif
+				enddo
+				
+				!remove double points
+				m = n_int
+				n_int = 0
+				do k=1,m-1
+					if ( sqrt( ( temp_xxy(k) - temp_xxy(k+1) )**2 + ( temp_yxy(k) - temp_yxy(k+1)  )**2   ) > 1d-10 .and. &
+						 .not. ( (b==0d0 .and. abs(y0th(j)-.5d0*dat%N) < 1d-15) .or. (a==0d0 .and. abs(x0th(j)-.5d0*dat%N) < 1d-15) ) ) then
+						n_int = n_int+1
+					endif
+				enddo
+			
+				!number of elements in the row is one less than the number of intersections
+				
+				nnz = nnz + max(n_int,0)
+				
+				!record the number of nonzeros up to this point
+				Amat%IA( (i-1)*dat%p+j ) = Amat%IA( (i-1)*dat%p+j-1 ) + max(n_int,0)
+			enddo
+		enddo
+		
+		!Now that nnz is known, we can allocate IA and vals.
+		Amat%m = dat%nth*dat%p
+		Amat%n = dat%n**2
+		Amat%nnz = nnz
+		allocate(Amat%vA(nnz))
+		allocate(Amat%JA(nnz))
+		
+		count = 0
+		do i=1,dat%nth!loop over all angles
+
+			!rotated starting position
+			x0th = cos(dat%theta(i))*x0 - sin(dat%theta(i))*y0
+			y0th = sin(dat%theta(i))*x0 + cos(dat%theta(i))*y0
+			
+			
+			a = -sin(dat%theta(i))
+			b = cos(dat%theta(i))
+			
+			do j=1,dat%p!loop over all rays
+				!use the parametrisation of the line to get the y-coordinates of the intersections of constant x
+				tx = (x-x0th(j))/a
+				yx = b*tx + y0th(j)
+
+
+				!use the parametrisation of the line to get the x-coordinates of the intersections of constant y
+				ty = (y-y0th(j))/b
+				xy = a*ty+x0th(j)
+
+				!collect the intersection times and coordinates
+				t = (/tx,ty/)
+				xxy = (/x,xy/)
+				yxy = (/yx,y/)
+			
+				!sort the intersection times and sort along the coordinates
+				indices = (/( k, k = 1, 2*dat%n+2 )/)
+				call quicksort(t,indices)
+				xxy = xxy(indices)
+				yxy = yxy(indices)
+			
+			
+				!not all intersection points are valid, sift out those that fall outside
+				n_int = 0
+				temp_xxy = 0d0
+				temp_yxy = 0d0
+				do k=1,2*dat%n+2
+					if (xxy(k) >= -.5d0*dat%n .and. xxy(k) <= .5d0*dat%n .and. yxy(k) >= -.5d0*dat%n .and. yxy(k) <= .5d0*dat%n) then
+						n_int = n_int+1
+						temp_xxy(n_int) = xxy(k)
+						temp_yxy(n_int) = yxy(k)
+					endif
+				enddo
+
+
+
+				!remove double points
+				m = 0
+				do k=1,n_int-1
+					test_val = sqrt( ( temp_xxy(k) - temp_xxy(k+1) )**2 + ( temp_yxy(k) - temp_yxy(k+1)  )**2 )
+					if ( test_val  > 1d-10 .and.&
+					.not. ( (b==0d0 .and. abs(y0th(j)-.5d0*dat%N) < 1d-15) .or. (a==0d0 .and. abs(x0th(j)-.5d0*dat%N) < 1d-15) ) ) then
+						m = m+1
+						count = count+1
+						Amat%vA(count) = test_val
+						
+						xm = .5d0*( temp_xxy(k) + temp_xxy(k+1) + dat%n )
+						ym = .5d0*( temp_yxy(k) + temp_yxy(k+1) + dat%n )
+
+						!compute column numbers
+						Amat%JA(count) = floor(xm)*dat%n + (dat%n - floor(ym))
+						
+						if (Amat%JA(count)==0) stop "++ Something went wrong"
+						
+					
+					endif
+				enddo
+				
+				!write(*,*) count, Amat%IA((i-1)*dat%p + j)
+				
+			enddo
+		enddo
+		
+		if (count<nnz) stop "Didn't hit all elements... somehow"
+		
+		
+	end function paralleltomo
+	
 	subroutine read_data(dat,inputfile,verbose)
 		implicit none
 		
@@ -360,6 +565,120 @@ contains
 		
 		close(11)
 	end subroutine read_ordering
+	
+	subroutine store_matrix(A,inputfile,verbose)
+		implicit none
+		
+		character(*),intent(in) :: inputfile
+		class(sparse_matrix) :: A
+		logical,optional :: verbose
+		
+		logical :: verb
+		integer :: k
+		
+		if (present(verbose)) then
+			verb = verbose
+		else
+			verb = .false.
+		endif
+	 	open(newunit=k,file=inputfile,form='unformatted')
+		
+		if (verb) then
+			write(*,*) "Opening file: ",inputfile
+			write(*,*) "Dumpin' data..."
+		endif
+		
+		write(k) A%m
+		write(k) A%n
+		write(k) A%nnz
+	    write(k) A%vA
+		write(k) A%JA
+		write(k) A%IA
+	    close(k)
+		
+		if (verb) write(*,*) "done! Closing file."
+		
+	end subroutine store_matrix
+	
+	subroutine read_csr_matrix(A,inputfile,verbose)
+		implicit none
+		
+		character(*),intent(in) :: inputfile
+		class(csr_matrix) :: A
+		logical,optional :: verbose
+		
+		logical :: verb
+		integer :: k
+		
+		if (present(verbose)) then
+			verb = verbose
+		else
+			verb = .false.
+		endif
+		
+		if (verb) then
+			write(*,*) "Opening file: ",inputfile
+			write(*,*) "Collecting data."
+		endif
+		
+		open (unit=k,form="unformatted",file=inputfile,action="read")
+		read(k) A%m
+		read(k) A%n
+		read(k) A%nnz
+		if (allocated(A%vA)) deallocate(A%vA)
+		if (allocated(A%JA)) deallocate(A%JA)
+		if (allocated(A%IA)) deallocate(A%IA)
+		allocate(A%vA(A%nnz))
+		allocate(A%JA(A%nnz))
+		allocate(A%IA(0:A%m))
+		read(k) A%vA
+		read(k) A%JA
+		read(k) A%IA
+		close(k)	
+		
+		if (verb) write(*,*) "Data collected. Closing file."
+		
+	end subroutine read_csr_matrix
+	
+	subroutine read_csc_matrix(A,inputfile,verbose)
+		implicit none
+		
+		character(*),intent(in) :: inputfile
+		class(csc_matrix) :: A
+		logical,optional :: verbose
+		
+		logical :: verb
+		integer :: k
+		
+		if (present(verbose)) then
+			verb = verbose
+		else
+			verb = .false.
+		endif
+		
+		if (verb) then
+			write(*,*) "Opening file: ",inputfile
+			write(*,*) "Collecting data."
+		endif
+		
+		open (unit=k,form="unformatted",file=inputfile,action="read")
+		read(k) A%m
+		read(k) A%n
+		read(k) A%nnz
+		if (allocated(A%vA)) deallocate(A%vA)
+		if (allocated(A%JA)) deallocate(A%JA)
+		if (allocated(A%IA)) deallocate(A%IA)
+		allocate(A%vA(A%nnz))
+		allocate(A%JA(A%nnz))
+		allocate(A%IA(0:A%n))
+		read(k) A%vA
+		read(k) A%JA
+		read(k) A%IA
+		close(k)
+		
+		if (verb) write(*,*) "Data collected. Closing file."
+		
+	end subroutine read_csc_matrix
 	
 	subroutine add_white_noise(bt,e,b,eta)
 		implicit none

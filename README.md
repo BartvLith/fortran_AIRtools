@@ -9,7 +9,7 @@ High-performance computing implementation of (parts of) the Matlab package AIRto
 
 ### Added features
 - Parallel matrix multiplications, SIRT methods and gradient descent are a bit faster now.
-- Rejected storage and read-in of system matrix. Simply too slow.
+- Storage of the matrix is only feasible when a binary data dump is used. This makes the file itself unreadable by humans or any other computer program that doesn't know the contents beforehand.
 
 ## Algebraic Iterative Reconstruction methods
 Algebraic Iterative Reconstruction (AIR) methods are a type of iterative linear solver that are popular in computed tomography (CT) reconstructions. The class includes Kaczmarz's method and other Algebraic Reconstruction Techniques (ART), Cimmino's method and other Simultaneous Iterative Reconstruction Techniques (SIRT).

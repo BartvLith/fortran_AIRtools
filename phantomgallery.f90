@@ -1,5 +1,5 @@
 module phantomgallery
-	use system_generation, only : pi
+	use system_generation, only : pi,linspace
 	implicit none
 	
 	! All functions in this module create a phantom with the of size N x N.
@@ -13,26 +13,6 @@ module phantomgallery
 	!
 	!Some functions have optional inputs to modify the phantoms somewhat.
 contains
-	
-	function linspace(a,b,n) result(x)
-		!Creates an array of size n with values linearly distributed between a and b.
-		!The endpoints, a and b, are included.
-		implicit none
-		real(kind=8),intent(in) :: a,b
-		integer,intent(in) :: n
-		real(kind=8) :: x(n)
-		
-		!local
-		integer :: i
-		real(kind=8) :: c,d
-		
-		c = (b-a)/(n-1)
-		d = a-c
-		
-		do i=1,n
-			x(i) = c*i+d
-		enddo
-	end function linspace
 	
 	subroutine meshgrid(x,y,N,corners)
 		!create a rectangular meshgrid of N x N on the unit square [-1,1]^2

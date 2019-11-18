@@ -35,8 +35,8 @@ program main
 	character(32) :: flagchar
 	character(12) :: recognised_methods(10),recognised_sr(5),recognised_phantom(10)
 	character(2) :: flag
-	character(30) :: inputfile,outputfile,inputmethod,inputstoprule,inputphantom,inputorder
-	logical :: test_mode,verbose_mode,stop_rule,customord
+	character(30) :: inputfile,outputfile,inputmethod,inputstoprule,inputphantom,inputorder,matrixfile
+	logical :: test_mode,verbose_mode,stop_rule,customord,storematrix,readmatrix
 	type(data) :: dat
 	real(kind=8) :: inputlb,inputub,inputrelaxpar,inputnoise
 	real(kind=8),allocatable :: data_temp(:,:),theta_temp(:)
@@ -55,6 +55,8 @@ program main
 	test_mode = .false.
 	stop_rule = .false.
 	customord = .false.
+	storematrix = .false.
+	readmatrix = .false.
 	inputnoise = 1d-3
 	outputfile = 'sol.txt'
 	inputmethod = 'kaczmarz'
@@ -145,6 +147,12 @@ program main
 				customord = .true.
 				if (verbose_mode) write(*,*) "Reading custom ordering."
 				call read_ordering(ordering,inputorder,verbose_mode)
+			case('-r')
+				READ(flagchar(3:32),*) matrixfile
+				readmatrix = .true.
+			case('-s')
+				READ(flagchar(3:32),*) matrixfile
+				storematrix = .true.
 			case('-H')
 				write(*,*) "Oh noes, the hamster! RUN!!!"
 				stop
@@ -152,6 +160,8 @@ program main
 				stop "Not a recognised flag, use -h for help."
 		end select
 	enddo	
+	
+	if (storematrix .and. readmatrix) stop "Choose either storing or reading matrix."
 	
 	if (verbose_mode) then
 		!$ write(*,*) "Parallel processing enabled."
@@ -167,7 +177,7 @@ program main
 	
 	if (test_mode) then
 		dat%n=256
-		dat%nth = 200
+		dat%nth = 400
 		dat%p = 1.5d0*dat%n
 		dat%r  = sqrt(2d0)
 		dat%dw = 1d0!2d0*sqrt(2d0)
@@ -180,11 +190,15 @@ program main
 		allocate(bt(dat%nth*dat%p))
 		allocate(noise(dat%nth*dat%p))
 		
-		dat%theta = linspace(0d0,2*pi,dat%nth)
+		dat%theta = linspace(0d0,pi,dat%nth)
 		
 		call system_clock ( t0, clock_rate, clock_max )
-		if (verbose_mode) write(*,*) "Constructing matrix..."
-		A = fanlineartomo(dat)
+		if (readmatrix) then
+			call read_csr_matrix(A,matrixfile,verbose_mode)
+		else
+			if (verbose_mode) write(*,*) "Constructing matrix..."
+			A = paralleltomo(dat)
+		endif
 		
 		phantom = choose_phantom(trim(inputphantom),dat%n) !change this line to pick the phantom based on input
 		ph_vec = vectorise(phantom)
@@ -228,9 +242,13 @@ program main
 		dat%dw = dat%dw/grid_size
 		dat%sd = dat%sd/grid_size
 		
-		if (verbose_mode) write(*,*) "Constructing matrix..."
-		A = fanlineartomo(dat)
-		call A%multiply_by_scalar(grid_size/dat%N)		
+		if (readmatrix) then
+			call read_csr_matrix(A,matrixfile,verbose_mode)
+		else
+			if (verbose_mode) write(*,*) "Constructing matrix..."
+			A = fanlineartomo(dat)
+			call A%multiply_by_scalar(grid_size/dat%N)		
+		endif
 		
 		allocate(bt(A%m))
 		bt = -log(dat%T)
@@ -239,6 +257,14 @@ program main
 		call system_clock ( t1, clock_rate, clock_max )
 		
 	endif
+	
+	if (storematrix) then
+	 	call store_matrix(A,matrixfile,verbose_mode)
+	endif
+	
+	
+	
+	
 	
 	if (verbose_mode) then
 		write(*,*) "done in ",real(t1-t0)/real(clock_rate)," seconds!"
