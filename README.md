@@ -4,7 +4,6 @@ High-performance computing implementation of (parts of) the Matlab package AIRto
 ### To-do list
 - Always add more test phantoms.
 - Implement blocking support.
-- Add feature to store and read-in the system matrix.
 - Make matrix-free implementations.
 
 ### Added features
