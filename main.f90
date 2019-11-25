@@ -52,16 +52,16 @@ program main
 	skip = 0
 	max_its = 100
 	verbose_mode = .false.
-	test_mode = .false.
+	test_mode = .true.
 	stop_rule = .false.
 	customord = .false.
 	storematrix = .false.
 	useoracle = .false.
 	readmatrix = .false.
-	inputnoise = 1d-3
+	inputnoise = 5d-3
 	outputfile = 'sol.txt'
 	inputmethod = 'kaczmarz'
-	inputphantom = ' '
+	inputphantom = 'shepplogan'
 	recognised_methods = (/'kaczmarz    ','randkaczmarz','rand        ','symkaczmarz ','sym         '&
 						  ,'graddescent ','gd          ','cimmino     ','sart        ','sirt        '/)
 	recognised_sr =      (/'errorgauge  ','mutualstep  ','eg          ','ms          ','twin        '&
@@ -96,6 +96,7 @@ program main
 				write(*,*) "-t[phantom]      Test mode, runs a test phantom. Standard is Shepp-Logan."
 				write(*,*) "                 Possible inputs: 'shepplogan'."
 				write(*,*) "-c[cull]         Cull factor. Only use every cull angles, cull must be an integer."
+				write(*,*) "-f[oraclefile]   Read in reference solution. Used as an oracle."
 				write(*,*) "-v               Verbose mode."
 				write(*,*) "-h               Help."
 				stop

@@ -329,7 +329,7 @@ contains
 			
 			if (useoracle .and. norm2(x-xo) > norm2(xp-xo) ) then
 				Xout(:,size(Kuse)) = xp
-				!exit
+				exit
 			endif
 				
 			
