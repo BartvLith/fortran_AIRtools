@@ -25,7 +25,7 @@ program main
 	integer :: final_it
 	
 	!Shepp-Logan
-	real(kind=8),allocatable :: phantom(:,:),ph_vec(:),b(:),bt(:),noise(:)
+	real(kind=8),allocatable :: phantom(:,:),xref(:),b(:),bt(:),noise(:)
 	
 	!timing
 	integer :: t0,t1,clock_rate,clock_max
@@ -33,10 +33,10 @@ program main
 	!input
 	integer :: cac,skip,cull
 	character(32) :: flagchar
-	character(12) :: recognised_methods(10),recognised_sr(5),recognised_phantom(10)
+	character(12) :: recognised_methods(10),recognised_sr(6),recognised_phantom(10)
 	character(2) :: flag
-	character(30) :: inputfile,outputfile,inputmethod,inputstoprule,inputphantom,inputorder,matrixfile
-	logical :: test_mode,verbose_mode,stop_rule,customord,storematrix,readmatrix
+	character(30) :: inputfile,outputfile,inputmethod,inputstoprule,inputphantom,inputorder,matrixfile,oraclefile
+	logical :: test_mode,verbose_mode,stop_rule,customord,storematrix,readmatrix,useoracle
 	type(data) :: dat
 	real(kind=8) :: inputlb,inputub,inputrelaxpar,inputnoise
 	real(kind=8),allocatable :: data_temp(:,:),theta_temp(:)
@@ -56,6 +56,7 @@ program main
 	stop_rule = .false.
 	customord = .false.
 	storematrix = .false.
+	useoracle = .false.
 	readmatrix = .false.
 	inputnoise = 1d-3
 	outputfile = 'sol.txt'
@@ -63,7 +64,8 @@ program main
 	inputphantom = ' '
 	recognised_methods = (/'kaczmarz    ','randkaczmarz','rand        ','symkaczmarz ','sym         '&
 						  ,'graddescent ','gd          ','cimmino     ','sart        ','sirt        '/)
-	recognised_sr =      (/'errorgauge  ','mutualstep  ','eg          ','ms          ','twin        '/)
+	recognised_sr =      (/'errorgauge  ','mutualstep  ','eg          ','ms          ','twin        '&
+						  ,'oracle      '/)
 	recognised_phantom = (/'shepplogan  ','            ','smooth      ','3phases     ','3phasesmooth'&
 						  ,'binary      ','4phases     ','mst         ','grains      ','bubbles     '/)
 	call options%initialise()
@@ -153,13 +155,22 @@ program main
 			case('-s')
 				READ(flagchar(3:32),*) matrixfile
 				storematrix = .true.
+			case('-f')
+				READ(flagchar(3:32),*) oraclefile
+				useoracle = .true.
 			case('-H')
 				write(*,*) "Oh noes, the hamster! RUN!!!"
 				stop
 			case default
 				stop "Not a recognised flag, use -h for help."
 		end select
-	enddo	
+	enddo
+	
+	if (useoracle .and. .not. (trim(inputstoprule)=='oracle')) then
+		write(*,*) "Overriding stopping rule. Using oracle instead."
+		inputstoprule = 'oracle'
+		stop_rule = .true.
+	endif
 	
 	if (storematrix .and. readmatrix) stop "Choose either storing or reading matrix."
 	
@@ -185,7 +196,7 @@ program main
 		
 		allocate(dat%theta(dat%nth))
 		allocate(phantom(dat%n,dat%n))
-		allocate(ph_vec(dat%n**2))
+		allocate(xref(dat%n**2))
 		allocate(b(dat%nth*dat%p))
 		allocate(bt(dat%nth*dat%p))
 		allocate(noise(dat%nth*dat%p))
@@ -200,9 +211,9 @@ program main
 			A = paralleltomo(dat)
 		endif
 		
-		phantom = choose_phantom(trim(inputphantom),dat%n) !change this line to pick the phantom based on input
-		ph_vec = vectorise(phantom)
-		b = A%matvecmul(ph_vec)
+		phantom = choose_phantom(trim(inputphantom),dat%n)
+		xref = vectorise(phantom)
+		b = A%matvecmul(xref)
 		call add_white_noise(bt,noise,b,inputnoise)
 		
 		call system_clock ( t1, clock_rate, clock_max )
@@ -232,7 +243,11 @@ program main
 			if (verbose_mode) write(*,*) "done."
 		endif
 		
-		if (verbose_mode) write(*,*) "Constructing matrix..."
+		if (useoracle) then
+			allocate(xref(dat%n**2))
+			call read_ref(xref,oraclefile,dat%n**2,verbose_mode)
+		endif
+		
 		call system_clock ( t0, clock_rate, clock_max )
 		
 		
@@ -296,23 +311,34 @@ program main
 	elseif (trim(inputmethod) == 'cimmino' .or. trim(inputmethod) == 'sart') then
 		call sirt(xout,inputmethod,A,bt,(/max_its/),options = options)
 	else
-		if (stop_rule) then
-			if (customord) then
-				call twin_art(xout,final_it,Xstore,Ystore,EG,inputmethod,inputstoprule,A,bt,(/max_its/),order=ordering,options = options)
+		if (customord) then
+			if (stop_rule) then
+				if (trim(inputstoprule)=='oracle') then
+					call art(Xstore,inputmethod,A,bt,(/max_its/),xref=xref,order=ordering,options = options)
+					xout = Xstore
+				else
+					call twin_art(xout,final_it,Xstore,Ystore,EG,inputmethod,inputstoprule,A,bt,(/max_its/),order=ordering,options = options)
+				endif
 			else
-				call twin_art(xout,final_it,Xstore,Ystore,EG,inputmethod,inputstoprule,A,bt,(/max_its/),options = options)
+				call art(Xstore,inputmethod,A,bt,(/max_its/),order=ordering,options = options)
+				xout = Xstore
 			endif
 		else
-			if (customord) then
-				call art(Xstore,inputmethod,A,bt,(/max_its/),order=ordering,options = options)
+			if (stop_rule) then
+				if (trim(inputstoprule)=='oracle') then
+					call art(Xstore,inputmethod,A,bt,(/max_its/),xref=xref,options = options)
+					xout = Xstore
+				else
+					call twin_art(xout,final_it,Xstore,Ystore,EG,inputmethod,inputstoprule,A,bt,(/max_its/),options = options)
+				endif
 			else
 				call art(Xstore,inputmethod,A,bt,(/max_its/),options = options)
+				xout = Xstore
 			endif
-			xout = Xstore
 		endif
 	endif
 	
-	if (verbose_mode .and. test_mode) write(*,*) "Final error: ",norm2(ph_vec-xout)/norm2(ph_vec)
+	if (verbose_mode .and. test_mode) write(*,*) "Final error: ",norm2(xref-xout)/norm2(xref)
 	
 	call system_clock ( t1, clock_rate, clock_max )
 	if (verbose_mode) write(*,*) "Done in ",real(t1-t0)/real(clock_rate)," seconds."

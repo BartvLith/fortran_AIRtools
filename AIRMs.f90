@@ -56,13 +56,14 @@ contains
 		
 	end subroutine set_lowerbound
 	
-	subroutine art(Xout,art_method,A,b,Kin,x0,order,options)
+	subroutine art(Xout,art_method,A,b,Kin,x0,xref,order,options)
 		!ART  General interface for all Kaczmarz/ART methods
 		!
 		!   call art(Xout,art_method,A,b,Kin)
 		!   call art(Xout,art_method,A,b,Kin,x0)
-		!   call art(Xout,art_method,A,b,Kin,x0,order)
-		!   call art(Xout,art_method,A,b,Kin,x0,order,options)
+		!   call art(Xout,art_method,A,b,Kin,x0,xref,order)
+		!   call art(Xout,art_method,A,b,Kin,x0,xref,order)
+		!   call art(Xout,art_method,A,b,Kin,x0,xref,order,options)
 		!
 		! Implements a general ART method for the linear system Ax = b:
 		!       
@@ -123,7 +124,7 @@ contains
 		class(csr_matrix),intent(in) :: A
 		real(kind=8),intent(in) :: b(A%m)
 		integer,intent(in) :: Kin(:)
-		real(kind=8),intent(in),optional :: x0(A%n)
+		real(kind=8),intent(in),optional :: x0(A%n),xref(A%n)
 		integer,optional :: order(:)
 		class(opts),intent(in),optional :: options
 		
@@ -133,12 +134,12 @@ contains
 		!local variables
 		integer :: ii,i,j,k,l,iter,maxiter,next_record,nord,ri
 		integer :: Kuse(size(Kin))
-		real(kind=8),dimension(A%n) :: x
-		real(kind=8) :: ub,lb,dmp,omg,cumsum
+		real(kind=8),dimension(A%n) :: x,xp,xo
+		real(kind=8) :: ub,lb,dmp,omg,cumsum,nxo
 		logical :: verb,upb,lwrb,isrand,rowprob
 		integer :: ord(A%m),tempord(A%m)
 		real(kind=8),dimension(A%m) :: nrA,cumul
-		logical :: perctdone(9)
+		logical :: useoracle
 		
 		if (present(options)) then
 			upb = options%upb
@@ -200,6 +201,15 @@ contains
 		else
 			x = 0d0
 			if (verb) write(*,*) "Using all-zero initial condition."
+		endif
+		
+		if (present(xref)) then
+			useoracle = .true.
+			xo = xref
+			nxo = norm2(xo)
+		else
+			useoracle = .false.
+			xo = 0d0
 		endif
 		
 		if (size(b) /= A%m) stop "Size of b should be equal to m (#rows)."
@@ -309,26 +319,36 @@ contains
 			!scramble the rows if random
 			if (isrand) ord(1:nord) = scramble(nord)
 			
+			if (useoracle) xp = x
+			
 			!go through the nonzero rows
 			call basic_sweep(x,A,b,ord,nord,isrand,rowprob,omg,nrA,cumul,upb,lwrb,ub,lb)
 			if (trim(art_method) == 'symkaczmarz') then
 				call basic_sweep(x,A,b,ord(nord:1:-1),nord,isrand,rowprob,omg,nrA,cumul,upb,lwrb,ub,lb)
 			endif
 			
+			if (useoracle .and. norm2(x-xo) > norm2(xp-xo) ) then
+				Xout(:,size(Kuse)) = xp
+				!exit
+			endif
+				
+			
+			
 			if (iter==Kuse(l)) then
 				Xout(:,l) = x
 				l = l+1
-				if (verb) then
-					if (trim(art_method)=='symkaczmarz') then
-						write(*,*) "Storing iteration: ",2*iter," out of ",2*maxiter
+			endif
+			
+			if (verb) then
+				if (trim(art_method)=='symkaczmarz') then
+					if (useoracle) then
+						write(*,*) "Iteration: ",2*iter," out of ",2*maxiter,". Error: ",norm2(x-xo)/nxo
 					else
-						write(*,*) "Storing iteration: ",iter," out of ",maxiter
-					endif
-				endif
-			else
-				if (verb) then
-					if (trim(art_method)=='symkaczmarz') then
 						write(*,*) "Iteration: ",2*iter," out of ",2*maxiter
+					endif
+				else
+					if (useoracle) then
+						write(*,*) "Iteration: ",iter," out of ",maxiter,". Error: ",norm2(x-xo)/nxo
 					else
 						write(*,*) "Iteration: ",iter," out of ",maxiter
 					endif

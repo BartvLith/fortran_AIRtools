@@ -535,8 +535,34 @@ contains
 		enddo
 	
 		close(10)
-		if (verb) write(*,*) "Opening file: ",trim(inputfile)
+		if (verb) write(*,*) "Closing file: ",trim(inputfile)
 	end subroutine read_data
+	
+	subroutine read_ref(xref,inputfile,n,verbose)
+		implicit none
+		
+		integer :: n
+		real(kind=8) :: xref(n)
+		character(30),intent(in) :: inputfile
+		logical,optional :: verbose
+		 
+		integer :: i
+		character(30) :: trash
+		logical :: verb
+		
+		verb = .false.
+		if (present(verbose)) verb = verbose
+	
+		if (verb) write(*,*) "Opening file: ",trim(inputfile)
+	
+		open (unit = 15, file = trim(inputfile))
+		
+		do i=1,n
+			read(15,*) xref(i)
+		enddo
+		close(15)
+		if (verb) write(*,*) "Closing file: ",trim(inputfile)
+	end subroutine read_ref
 	
 	subroutine read_ordering(ordering,inputfile,verbose)
 		implicit none
