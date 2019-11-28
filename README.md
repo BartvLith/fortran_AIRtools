@@ -1,5 +1,5 @@
-# FAIRtools
-High-performance computing implementation of (parts of) the Matlab package AIRtools II. For more information on AIRtools II, see the [research article](https://link.springer.com/article/10.1007/s11075-017-0430-x); the [AIRtools II homepage](http://people.compute.dtu.dk/pcha/AIRtoolsII/index.html); or the [GitHub repository](https://github.com/jakobsj/AIRToolsII).
+# FAIR tools
+High-performance computing implementation of (parts of) the Matlab package AIR Tools II. For more information on AIR Tools II, see the [research article](https://link.springer.com/article/10.1007/s11075-017-0430-x); the [AIR Tools II homepage](http://people.compute.dtu.dk/pcha/AIRtoolsII/index.html); or the [GitHub repository](https://github.com/jakobsj/AIRToolsII).
 
 ### To-do list
 - Always add more test phantoms.
